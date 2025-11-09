@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>I'm Sorry My Bro — 2012 Edition</title>
+  <style>
+    /* ===== 2012 Metro / Modern UI Style ===== */
+    :root{
+      --bg:#1f1f1f; /* app background */
+      --tile1:#00b4ff; /* cyan */
+      --tile2:#ff5722; /* orange */
+      --tile3:#7c4dff; /* purple */
+      --tile4:#00c853; /* green */
+      --ink:#ffffff;
+      --ink-dim: #cbd5e1;
+      --accent:#00b4ff;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:"Segoe UI", "Segoe UI Light", system-ui, -apple-system, sans-serif;background:var(--bg);color:var(--ink)}
+    #app{position:relative;display:grid;place-items:center;height:100%}
+
+    /* Canvas panel */
+    #stageWrap{position:relative}
+    canvas{background:#111;border:0;outline:0;display:block}
+
+    /* HUD as Metro tiles */
+    .hud{position:absolute;inset:0;pointer-events:none}
+    .tilebar{position:absolute;left:16px;top:16px;display:flex;gap:12px}
+    .tile{pointer-events:auto;min-width:120px;padding:10px 14px;background:var(--tile1);color:#001018;font-weight:600;border:none}
+    .tile.small{min-width:auto;font-weight:600}
+    .tile.orange{background:var(--tile2)}
+    .tile.purple{background:var(--tile3)}
+    .tile.green{background:var(--tile4)}
+    .tile.flat{background:#222;color:var(--ink-dim);font-weight:500}
+    .tile[role="button"]{cursor:pointer}
+
+    .tile-right{position:absolute;right:16px;top:16px;display:flex;gap:12px}
+
+    /* Metro menu */
+    .menu{position:absolute;inset:0;display:grid;place-items:center;background:#000000aa;backdrop-filter:blur(2px)}
+    .menu-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:18px}
+    .menu .tile{font-size:20px;padding:18px}
+
+    @media (max-width: 780px){
+      .menu-grid{grid-template-columns:1fr 1fr}
+      .tilebar{left:10px;top:10px}
+      .tile-right{right:10px;top:10px}
+    }
+
+    /* Charm bar (pause/settings) */
+    .charms{position:absolute;top:0;right:0;height:100%;width:320px;background:#0d0d0d;transform:translateX(100%);transition:transform .25s ease;border-left:2px solid #222}
+    .charms.show{transform:translateX(0%)}
+    .charms h3{margin:16px}
+    .charms .group{padding:0 16px 16px 16px;border-bottom:1px solid #222}
+    .charms button{display:block;width:100%;margin:10px 0;padding:12px 14px;background:#242424;border:1px solid #333;color:var(--ink);cursor:pointer}
+
+    /* Crash (Win8 BSOD) */
+    .bsod{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#1070ff;color:#fff;text-align:left}
+    .bsod.show{display:flex}
+    .bsod .box{max-width:820px;padding:20px}
+    .bsod .face{font-size:80px;line-height:1;margin-bottom:16px}
+    .bsod .txt{font-size:22px}
+
+    /* Achievements toast */
+    .toast{position:absolute;left:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border:1px solid #333;display:none}
+    .toast.show{display:block}
+
+    /* Footer hint */
+    .hint{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;color:#9aa5b1;font-size:12px}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="stageWrap">
+      <canvas id="game" width="960" height="600" aria-label="I'm Sorry My Bro — 2012 Edition"></canvas>
+
+      <div class="hud">
+        <div class="tilebar">
+          <button class="tile" id="scoreTile">❤❤❤❤❤ · B:0 · S:0/4000</button>
+          <div class="tile flat" id="hiTile">High: 0</div>
+          <div class="tile flat" id="achTile">Achievements: 0</div>
+        </div>
+        <div class="tile-right">
+          <button class="tile purple small" id="btnPause" title="Pause / Charms">❚❚</button>
+          <button class="tile green small" id="btnFull" title="Fullscreen">⛶</button>
+        </div>
+        <div class="hint">Tap/click to dash · Swipe drag on mobile · P = pause · R = restart · Secret: press <b>4</b></div>
+      </div>
+
+      <!-- Metro Menu -->
+      <div class="menu" id="menu">
+        <div class="menu-grid">
+          <button class="tile" id="playBtn">▶ Play</button>
+          <button class="tile orange" id="howBtn">❔ Instructions</button>
+          <button class="tile purple" id="statsBtn">🏆 Stats</button>
+          <button class="tile green" id="resetBtn">♻ Reset Highscore</button>
+          <a class="tile" id="quitBtn" href="#" onclick="return false;">✖ Quit</a>
+        </div>
+      </div>
+
+      <!-- Charms (pause/settings) -->
+      <aside class="charms" id="charms">
+        <h3 style="margin-top:20px;margin-bottom:6px;padding-left:16px">Settings</h3>
+        <div class="group">
+          <button id="resumeBtn">Resume</button>
+          <button id="restartBtn">Restart</button>
+          <button id="muteBtn">Toggle Sound</button>
+        </div>
+        <div class="group">
+          <div>Highscore: <span id="hiVal">0</span></div>
+          <div>Total Achievements: <span id="achVal">0</span></div>
+        </div>
+      </aside>
+
+      <!-- BSOD -->
+      <div class="bsod" id="bsod">
+        <div class="box">
+          <div class="face">:(</div>
+          <div class="txt">
+            Your PC ran into a problem and needs to restart. We're just collecting some error info, and then we'll restart for you.<br><br>
+        
+          </div>
+        </div>
+      </div>
+
+      <!-- Toast -->
+      <div class="toast" id="toast">Achievement unlocked!</div>
+    </div>
+  </div>
+
+  <script>
+  (()=>{
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const inner = { x: 24, y: 24, w: W-48, h: H-48 };
+
+    // UI
+    const scoreTile = document.getElementById('scoreTile');
+    const hiTile = document.getElementById('hiTile');
+    const achTile = document.getElementById('achTile');
+    const btnPause = document.getElementById('btnPause');
+    const btnFull = document.getElementById('btnFull');
+    const menu = document.getElementById('menu');
+    const playBtn = document.getElementById('playBtn');
+    const howBtn = document.getElementById('howBtn');
+    const statsBtn = document.getElementById('statsBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const charms = document.getElementById('charms');
+    const resumeBtn = document.getElementById('resumeBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const muteBtn = document.getElementById('muteBtn');
+    const hiVal = document.getElementById('hiVal');
+    const achVal = document.getElementById('achVal');
+    const bsod = document.getElementById('bsod');
+    const toast = document.getElementById('toast');
+
+    // Entities
+    const player = { x: inner.x + inner.w*0.25, y: inner.y + inner.h*0.5, r: 12, vx:0, vy:0, speed: 360 };
+    const chaser = { x: inner.x + inner.w*0.75, y: inner.y + inner.h*0.5, size: 34, speedBase: 200, speed: 200 };
+
+    // State
+    let lives=5, bounces=0, score=0, state='menu';
+    let highscore = Number(localStorage.getItem('isb2012_highscore')||0);
+    let achievements = JSON.parse(localStorage.getItem('isb2012_ach')||'{}');
+    function achCount(){ return Object.keys(achievements).length; }
+
+    // Audio (simple beeps)
+    let audioCtx=null, master=null, soundOn=false;
+    function initAudio(){ if(audioCtx) return; audioCtx=new (window.AudioContext||window.webkitAudioContext)(); master=audioCtx.createGain(); master.gain.value=0.18; master.connect(audioCtx.destination); }
+    function beep(f,d,vol=0.5,type='square'){ if(!soundOn||!audioCtx) return; const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type=type; o.frequency.value=f; const t=audioCtx.currentTime; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+d); o.connect(g); g.connect(master); o.start(t); o.stop(t+d+0.03); }
+
+    function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 1800); }
+
+    // Helpers
+    const clamp=(v,min,max)=>v<min?min:v>max?max:v;
+    function dir(ax,ay,bx,by){ const dx=bx-ax, dy=by-ay; const d=Math.hypot(dx,dy)||1; return {x:dx/d,y:dy/d}; }
+    function circleBoxHit(cx,cy,r,bx,by,bw,bh){ const nx=Math.max(bx,Math.min(cx,bx+bw)); const ny=Math.max(by,Math.min(cy,by+bh)); const dx=cx-nx, dy=cy-ny; return dx*dx+dy*dy<=r*r; }
+
+    function updateHud(){ scoreTile.textContent = `${'❤'.repeat(lives)} · B:${bounces} · S:${score}/4000`; hiTile.textContent = `High: ${highscore}`; achTile.textContent = `Achievements: ${achCount()}`; hiVal.textContent = highscore; achVal.textContent = achCount(); }
+
+    function resetPositions(){ player.x=inner.x+inner.w*0.25; player.y=inner.y+inner.h*0.5; player.vx=0; player.vy=0; chaser.x=inner.x+inner.w*0.75; chaser.y=inner.y+inner.h*0.5; }
+    function fullReset(){ lives=5; bounces=0; score=0; chaser.speed=chaser.speedBase; resetPositions(); updateHud(); }
+
+    // Difficulty scaling & predictive AI (every 1000 score)
+    function difficultyCheck(){ const tier = Math.floor(score/1000); chaser.speed = chaser.speedBase + tier*35; }
+
+    function predictiveDir(){
+      const tier = Math.floor(score/1000);
+      if(tier<=0) return dir(chaser.x,chaser.y,player.x,player.y);
+      // lead prediction: predict player's next position by lead time
+      const lead = clamp(0.2 + tier*0.08, 0.2, 0.6);
+      const targetX = player.x + player.vx * lead;
+      const targetY = player.y + player.vy * lead;
+      return dir(chaser.x, chaser.y, targetX, targetY);
+    }
+
+    // Achievements
+    function unlock(key,label){ if(achievements[key]) return; achievements[key]=true; localStorage.setItem('isb2012_ach', JSON.stringify(achievements)); showToast(`🏆 ${label}`); updateHud(); }
+
+    function addBounce(){ bounces++; beep(760,0.05,0.35,'square'); if(bounces===1) unlock('first_bounce','First Bounce'); if(bounces===100) unlock('hundred_b','100 Bounces'); if(bounces===1000) unlock('thousand_b','1,000 Bounces'); if(bounces%20===0 && score<4000){ score++; difficultyCheck(); if(score===100) unlock('score100','Score 100'); if(score===1000) unlock('score1000','Score 1,000'); if(score>=4000){ triggerCrash(); } } updateHud(); }
+
+    function loseLife(){ if(state!=='playing') return; lives=Math.max(0,lives-1); beep(220,0.18,0.6,'sawtooth'); if(lives<=0){ state='menu'; highscore=Math.max(highscore,score); localStorage.setItem('isb2012_highscore', String(highscore)); updateHud(); showToast(`Game Over — Score ${score}`); menu.style.display='grid'; } else { resetPositions(); } }
+
+    function triggerCrash(){
+      highscore=Math.max(highscore,score); localStorage.setItem('isb2012_highscore', String(highscore));
+      updateHud();
+      state='crashed';
+      bsod.classList.add('show');
+      setTimeout(()=>{ // mimic reboot back to menu
+        bsod.classList.remove('show');
+        fullReset();
+        menu.style.display='grid';
+        state='menu';
+      }, 2600);
+    }
+
+    // Render
+    function drawFrame(){
+      // flat frame
+      ctx.fillStyle='#0d0d0d';
+      ctx.fillRect(inner.x-8, inner.y-8, inner.w+16, inner.h+16);
+      ctx.strokeStyle='#303030'; ctx.lineWidth=2; ctx.strokeRect(inner.x-8.5, inner.y-8.5, inner.w+17, inner.h+17);
+      // playfield
+      ctx.fillStyle='#141414';
+      ctx.fillRect(inner.x, inner.y, inner.w, inner.h);
+      // grid accent lines (subtle)
+      ctx.strokeStyle='#1e1e1e'; ctx.lineWidth=1;
+      for(let x=inner.x; x<=inner.x+inner.w; x+=48){ ctx.beginPath(); ctx.moveTo(x,inner.y); ctx.lineTo(x,inner.y+inner.h); ctx.stroke(); }
+      for(let y=inner.y; y<=inner.y+inner.h; y+=48){ ctx.beginPath(); ctx.moveTo(inner.x,y); ctx.lineTo(inner.x+inner.w,y); ctx.stroke(); }
+    }
+    function drawEntities(){
+      // player (flat red disk)
+      ctx.fillStyle='#ff1744';
+      ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill();
+      // chaser (flat blue square)
+      const hs = chaser.size/2; ctx.fillStyle='#00b4ff'; ctx.fillRect(chaser.x-hs, chaser.y-hs, chaser.size, chaser.size);
+    }
+
+    function render(){ ctx.clearRect(0,0,W,H); drawFrame(); drawEntities(); }
+
+    // Step
+    function step(dt){
+      if(state!=="playing"){ render(); return; }
+      // move player
+      player.x += player.vx*dt; player.y += player.vy*dt;
+      // walls -> bounce
+      if(player.x-player.r < inner.x){ player.x=inner.x+player.r; player.vx*=-1; addBounce(); }
+      else if(player.x+player.r > inner.x+inner.w){ player.x=inner.x+inner.w-player.r; player.vx*=-1; addBounce(); }
+      if(player.y-player.r < inner.y){ player.y=inner.y+player.r; player.vy*=-1; addBounce(); }
+      else if(player.y+player.r > inner.y+inner.h){ player.y=inner.y+inner.h-player.r; player.vy*=-1; addBounce(); }
+
+      // chaser AI (predictive when tier >=1)
+      const d = predictiveDir();
+      chaser.x += d.x*chaser.speed*dt; chaser.y += d.y*chaser.speed*dt;
+      const hs = chaser.size/2; chaser.x = clamp(chaser.x, inner.x+hs, inner.x+inner.w-hs); chaser.y = clamp(chaser.y, inner.y+hs, inner.y+inner.h-hs);
+
+      // collision
+      if(circleBoxHit(player.x,player.y,player.r, chaser.x-hs, chaser.y-hs, chaser.size, chaser.size)) loseLife();
+      render();
+    }
+
+    // Input (tap/click + swipe drag)
+    function canvasPoint(e){ const rect=canvas.getBoundingClientRect(); const cx=(e.clientX ?? e.touches?.[0].clientX) - rect.left; const cy=(e.clientY ?? e.touches?.[0].clientY) - rect.top; const x = cx*(W/rect.width); const y = cy*(H/rect.height); return {x,y}; }
+    function aimTo(p){ const v = dir(player.x,player.y,p.x,p.y); player.vx=v.x*player.speed; player.vy=v.y*player.speed; }
+
+    let dragStart=null;
+    canvas.addEventListener('mousedown', e=>{ if(state!=="playing") return; aimTo(canvasPoint(e)); });
+    canvas.addEventListener('touchstart', e=>{ if(state!=="playing") return; dragStart = canvasPoint(e); e.preventDefault(); }, {passive:false});
+    canvas.addEventListener('touchmove', e=>{ if(state!=="playing") return; if(!dragStart) return; const p=canvasPoint(e); aimTo(p); e.preventDefault(); }, {passive:false});
+    canvas.addEventListener('touchend', ()=>{ dragStart=null; }, {passive:true});
+
+    // Keys
+    window.addEventListener('keydown', e=>{
+      const k=e.key.toLowerCase();
+      if(k==='p'){ toggleCharms(); }
+      if(k==='r'){ menu.style.display='grid'; state='menu'; fullReset(); }
+      if(e.key==='4'){ score=4000; updateHud(); triggerCrash(); }
+    }, {passive:true});
+
+    // Buttons
+    function toggleCharms(){ if(charms.classList.contains('show')) charms.classList.remove('show'); else charms.classList.add('show'); }
+    btnPause.onclick = toggleCharms;
+    resumeBtn.onclick = ()=>{ charms.classList.remove('show'); };
+    restartBtn.onclick = ()=>{ charms.classList.remove('show'); menu.style.display='grid'; state='menu'; fullReset(); };
+    muteBtn.onclick = ()=>{ if(!audioCtx) initAudio(); soundOn = !soundOn; if(soundOn) beep(880,0.08,0.4,'square'); };
+
+    btnFull.onclick = ()=>{
+      const el = document.documentElement;
+      if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen).call(el); }
+      else { (document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen).call(document); }
+    };
+
+    playBtn.onclick = ()=>{ menu.style.display='none'; state='playing'; if(!audioCtx) initAudio(); };
+    howBtn.onclick = ()=>{ showToast('Bounce off walls. Avoid the blue square. Every 20 bounces = +1 score. Max 4000.'); };
+    statsBtn.onclick = ()=>{ showToast(`High ${highscore}, Ach ${achCount()}`); };
+    resetBtn.onclick = ()=>{ localStorage.removeItem('isb2012_highscore'); localStorage.removeItem('isb2012_ach'); highscore=0; achievements={}; updateHud(); showToast('Stats reset'); };
+
+    // Game loop
+    function init(){ updateHud(); menu.style.display='grid'; }
+    let last=performance.now();
+    function loop(now){ const dt=Math.min(0.033,(now-last)/1000); last=now; step(dt); requestAnimationFrame(loop); }
+    init(); requestAnimationFrame(loop);
+  })();
+  </script>
+</body>
+</html>
